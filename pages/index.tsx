@@ -1,68 +1,79 @@
-import Head from 'next/head';
-import Image from 'next/image';
-import DemoCard from '../components/DemoCard';
-import styles from '../styles/Home.module.css';
-import Container from '@mui/material/Container';
-import { Grid } from '@mui/material';
-import { Box } from '@mui/system';
-import { useVirtualScroll } from '../util/useVirtualScroll';
-import { ChangeEvent, createRef, useEffect, useMemo, useState } from 'react';
+import React, { createRef, Fragment, PureComponent } from 'react';
+import { FixedSizeList as List } from 'react-window';
+import InfiniteLoader from 'react-window-infinite-loader';
+import AutoSizer from 'react-virtualized-auto-sizer';
 
-const DATA_COUNT = 100;
-const EXTRA_ITEM_COUNT = 6
+const LOADING = 1;
+const LOADED = 2;
+let itemStatusMap = {};
 
-const getArray = (count: number) => {
-  const arr = [];
-  for (let i = 0; i < count; i++) {
-    arr[i] = i;
-  }
-  return arr;
-};
+export default function App() {
+  //それぞれのアイテムがロード完了かどうかを判断
+  const isItemLoaded = (index) => !!itemStatusMap[index];
 
-const items = getArray(DATA_COUNT)
-const itemHeight = 338.391
+  //列がロードされなければいけない時に発動。
+  //全てがロードされたらresolveを返す
+  const loadMoreItems = (startIndex, stopIndex) => {
+    for (let index = startIndex; index <= stopIndex; index++) {
+      itemStatusMap[index] = LOADING;
+    }
+    return new Promise((resolve) =>
+      setTimeout(() => {
+        for (let index = startIndex; index <= stopIndex; index++) {
+          itemStatusMap[index] = LOADED;
+        }
+        resolve('solved!');
+      }, 2500)
+    );
+  };
 
-export default function Home() {
-  const [containerHeight, setContainerHeight] = useState<number>(0)
-  const [startIndex, setStartIndex] = useState<number>(0);
-  const maxDisplayCount = Math.floor(
-    containerHeight / itemHeight + EXTRA_ITEM_COUNT
-  );
-
-  const displayingItems = useMemo(
-    () => items.slice(startIndex - EXTRA_ITEM_COUNT >= 0 ? startIndex - EXTRA_ITEM_COUNT : 0 , startIndex + maxDisplayCount),
-    [startIndex, maxDisplayCount]
-  );
-
-  useEffect(() => {
-    const vh = window.innerHeight
-    setContainerHeight(vh)
-    const topLevelBox = document.getElementById('top-level-box');
-
-    window.addEventListener("scroll", (e: any) => {
-      console.log(window.pageYOffset);
-      console.log(topLevelBox!.offsetTop)
-      const scrollTop = window.pageYOffset - topLevelBox!.offsetTop
-      const nextStartIndex = Math.floor(scrollTop / itemHeight) > 0 ? Math.floor(scrollTop / itemHeight) : 0;
-      console.log(nextStartIndex)
-      setStartIndex(nextStartIndex);
-    })
-  }, [])
+  const Row = ({ index, style }) => {
+    let label;
+    if (itemStatusMap[index] === LOADED) {
+      label = `Row ${index}`;
+    } else {
+      label = 'Loading...';
+    }
+    return (
+      <div className="ListItem" style={style}>
+        {label}
+      </div>
+    );
+  };
 
   return (
-    <div>
-      <Container maxWidth="sm" style={{border: "2px solid #ccc"}}>
-        <Box height={300}>
-          ヘッダー
-        </Box>
-        <Box id="top-level-box" style={{height: items.length * itemHeight}}>
-          <Box style={{ position: "relative", top: startIndex * itemHeight}}>
-            {displayingItems.map(data => {
-              return <DemoCard key={data} style={{margin: "20px auto 20px"}}/>
-            })}
-          </Box>
-        </Box>
-      </Container>
-    </div>
+    <Fragment>
+      <p className="Note">
+        This demo app mimics loading remote data with a 2.5s timer. While rows
+        are "loading" they will display a "Loading..." label. Once data has been
+        "loaded" the row number will be displayed. Start scrolling the list to
+        automatically load data.
+      </p>
+      <AutoSizer>
+        {({ height, width }) => (
+          <InfiniteLoader
+            isItemLoaded={isItemLoaded}
+            itemCount={1000}
+            loadMoreItems={loadMoreItems}
+          >
+            {({ onItemsRendered, ref }) => (
+              <List
+                className="List"
+                height={height}
+                itemCount={1000}
+                itemSize={30}
+                onItemsRendered={onItemsRendered}
+                ref={ref}
+                width={width}
+                overscanCount={4}
+              >
+                {Row}
+              </List>
+            )}
+          </InfiniteLoader>
+        )}
+      </AutoSizer>
+
+    </Fragment>
   );
 }
